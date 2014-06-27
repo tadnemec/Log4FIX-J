@@ -55,7 +55,6 @@ public class FieldHighlighter extends Highlighter {
 	private static Color headerFieldColor = new Color(252, 152, 108);
 	private static Color trailerFieldColor = new Color(88, 211, 113);
 
-	// TODO: Adjustable colors
 	public static void setDFC(Color c) {
 		dataFieldColor = c;
 	}

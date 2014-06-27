@@ -20,6 +20,10 @@ The search bars in the top bar are responsible for searching session titles and 
 
 *WARNING:* The original program assumed that the first message in each session was from the user, and used that to determine which messages are being received and which are outgoing. I replaced this with an equally inelegant solution of searching the surrounding log message for the strings `Sending` or `Receiving`. (There is also support for the shorthand `SEND` and `RECV`.) If your log messages do not contain one of these two strings, this will not work.
 
+## Tests
+
+Tests don't currently work almost at all. Sorry about that.
+
 ## Sample Messages
 
 ~~There are a handful of sample messages located in the __src/test/resources/logs__ directory.~~ These won't work, unfortunately.

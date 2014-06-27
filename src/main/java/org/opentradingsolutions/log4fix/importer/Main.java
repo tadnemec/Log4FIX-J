@@ -68,8 +68,9 @@ public class Main {
 
 		File file = new File(".\\CONFIG");
 		if (file.exists()) {
+			BufferedReader br = null;
 			try {
-				BufferedReader br = new BufferedReader(new FileReader(file));
+				br = new BufferedReader(new FileReader(file));
 				String line;
 				while ((line = br.readLine()) != null) {
 					if (line.matches(".*:[ ]*(true|false).*")
@@ -84,12 +85,20 @@ public class Main {
 							&& !line.startsWith("//")) {
 						String[] values = line.substring(line.indexOf(":") + 1)
 								.split(",");
-						int r = Integer.parseInt(values[0].replaceAll("[^0-9]",
-								""));
-						int g = Integer.parseInt(values[1].replaceAll("[^0-9]",
-								""));
-						int b = Integer.parseInt(values[2].replaceAll("[^0-9]",
-								""));
+						int r;
+						int g;
+						int b;
+						try {
+							r = Integer.parseInt(values[0].replaceAll("[^0-9]",
+									""));
+							g = Integer.parseInt(values[1].replaceAll("[^0-9]",
+									""));
+							b = Integer.parseInt(values[2].replaceAll("[^0-9]",
+									""));
+						} catch (RuntimeException e) {
+							e.printStackTrace();
+							continue;
+						}
 						if (line.startsWith("IN_COLOR")) {
 							RawMessageTableCellRenderer
 									.setIC(new Color(r, g, b));
@@ -123,9 +132,16 @@ public class Main {
 						}
 					}
 				}
-				br.close();
 			} catch (Exception e) {
 				System.out.println(e.getMessage());
+			} finally {
+				if (br != null) {
+					try {
+						br.close();
+					} catch (Exception e) {
+						// do nothing
+					}
+				}
 			}
 		}
 

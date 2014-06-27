@@ -170,6 +170,7 @@
                 <include name="lib/*license"/>
                 <include name="LICENSE"/>
                 <include name="build.xml"/>
+				<include name="CONFIG"/>
             </fileset>
         </copy>
     </target>
@@ -184,6 +185,7 @@
                 <include name="${file.jar}"/>
             </fileset>
             <fileset dir=".">
+				<include name="CONFIG"/>
                 <include name="${dir.lib}/glazedlists-1.6.0.jar"/>
                 <include name="${dir.lib}/quickfixj-all-1.5.1.jar"/>
                 <include name="${dir.lib}/swingx.jar"/>

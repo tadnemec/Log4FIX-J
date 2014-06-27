@@ -64,8 +64,6 @@ import ca.odell.glazedlists.impl.ThreadSafeList;
 /**
  * @author Brian M. Coyner
  */
-
-// TODO: Refactor tab construction to ViewBuilder
 public class ImporterController {
 
 	private final ActionStart start;
