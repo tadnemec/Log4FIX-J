@@ -1,0 +1,38 @@
+Usage:
+
+Double click the compiled jar file to open.
+Import imports a log file and displays the different sessions it contains in tabs.
+Cancel cancels a log file currently being imported.
+Clear removes any log file currently being displayed.
+Refresh reloads a log file currently loaded, but only if it had been modified since it was read.
+The session and messages search boxes filter what tabs and messages are visible by session titles and FIX messages respectively.
+The search box below searches only within the current session.
+By clicking on a FIX message, it is possible to view the information for each tag of the message. Furthermore, the FIX message itself is shown at the bottom of the screen.
+
+Warning:
+
+Tests currently do not work.
+In order to determine whether messages are incoming or outgoing, the whole log message is searched for the strings "Sending" or "Received", with the strings "SEND" and "RECV" also being supported. If your log messages are in a different format, this will not work.
+
+Configuration:
+
+The accompanying CONFIG file contains a number of settings for the program.
+Any line starting with // is automatically ignored, as is any line that doesn't match the format for properties or color values.
+This file doesn't need to have any particular property nor does it even have to exist for the program to run properly.
+
+These are the properties that the file contains:
+
+LIVE_TABS - refers to whether or not searching through session titles happens as you type or after you press enter. It's usually safe to set this to true, unless there's an absurd amount of sessions.
+LIVE_SEARCH - refers to whether or not searching through FIX messages happens as you type or after you press enter. This can make the program run slowly while searching.
+
+IN_COLOR - background color of incoming messages, in RGB
+OUT_COLOR - background color of outgoing messages, in RGB
+IN_TEXT - text color of incoming messages, in RGB
+OUT_TEXT - text color of outgoing messages, in RGB
+IN_SELECT_COLOR - background color of selected incoming message, in RGB
+OUT_SELECT_COLOR - background color of selected outgoing message, in RGB
+IN_SELECT_TEXT - text color of selected incoming message, in RGB
+OUT_SELECT_TEXT - text color of selected incoming message, in RGB
+DATA - background color of data cells, in RGB
+HEADER - background color of header cells, in RGB
+TRAILER - background color of header cells, in RGB
