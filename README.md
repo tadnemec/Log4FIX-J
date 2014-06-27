@@ -16,7 +16,35 @@ All thirdparty JARs and licenses are included
     $ java -jar log4fix-2.0.0.jar
 
 After the Log4FIX UI launches press the "Import" button, select a FIX log file to view the log.
+The search bars in the top bar are responsible for searching session titles and FIX message contents respectively. The latter may be very slow when processing large log files. Consider setting the LIVE_SEARCH property in the CONFIG file (see below) to false.
+*WARNING:* The original program assumed that the first message in each session was from the user, and used that to determine which messages are being received and which are outgoing. I replaced this with an equally inelegant solution of searching the surrounding log message for the strings `Sending` or `Receiving`. (There is also support for the shorthand `SEND` and `RECV`.) If your log messages do not contain one of these two strings, this will not work.
 
 ## Sample Messages
 
-There are a handful of sample messages located in the __src/test/resources/logs__ directory.
+~~There are a handful of sample messages located in the __src/test/resources/logs__ directory.~~ These won't work, unfortunately.
+
+## Config
+
+The program accepts an optional CONFIG file in the same directory as the compiled executable .jar, allowing users to set options such as setting colors of UI elements and configuring the behavior of searches.
+Sample CONFIG file:
+
+       --PROPERTIES--
+       // PROPERTY : value
+       
+       //LIVE_TABS : true
+       //LIVE_SEARCH : true
+       
+       --COLORS--
+       // COLOR : r,g,b
+
+       //IN_COLOR : 255,255,255
+       //OUT_COLOR : 255,255,255
+       //IN_TEXT : 255,255,255
+       //OUT_TEXT : 255,255,255
+       //IN_SELECT_COLOR : 255,255,255
+       //OUT_SELECT_COLOR : 255,255,255
+       //IN_SELECT_TEXT : 255,255,255
+       //OUT_SELECT_TEXT : 255,255,255
+       //DATA : 255,255,255
+       //HEADER : 255,255,255
+       //TRAILER : 255,255,255
