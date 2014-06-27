@@ -17,6 +17,7 @@ All thirdparty JARs and licenses are included
 
 After the Log4FIX UI launches press the "Import" button, select a FIX log file to view the log.
 The search bars in the top bar are responsible for searching session titles and FIX message contents respectively. The latter may be very slow when processing large log files. Consider setting the LIVE_SEARCH property in the CONFIG file (see below) to false.
+
 *WARNING:* The original program assumed that the first message in each session was from the user, and used that to determine which messages are being received and which are outgoing. I replaced this with an equally inelegant solution of searching the surrounding log message for the strings `Sending` or `Receiving`. (There is also support for the shorthand `SEND` and `RECV`.) If your log messages do not contain one of these two strings, this will not work.
 
 ## Sample Messages
@@ -26,6 +27,7 @@ The search bars in the top bar are responsible for searching session titles and 
 ## Config
 
 The program accepts an optional CONFIG file in the same directory as the compiled executable .jar, allowing users to set options such as setting colors of UI elements and configuring the behavior of searches.
+
 Sample CONFIG file:
 
        --PROPERTIES--
@@ -48,3 +50,15 @@ Sample CONFIG file:
        //DATA : 255,255,255
        //HEADER : 255,255,255
        //TRAILER : 255,255,255
+
+`LIVE_TABS` : whether searching by tab titles will update as the search box is updated. Usually not slow enough to warrant setting to false (default = true)
+
+`LIVE_SEARCH` : whether searching by FIX message contents will update as the search box is updated. Often gets very slow (default = true)
+
+`IN_COLOR` : the color of incoming messages
+
+`OUT_COLOR` : the color of outgoing messages
+
+`*_SELECT` : the color of a given type of message when selected
+
+`*_TEXT` : the color of text in a given type of message
