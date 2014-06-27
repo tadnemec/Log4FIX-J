@@ -34,41 +34,73 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.opentradingsolutions.log4fix.core.GlazedListsMemoryLogModel;
+import org.opentradingsolutions.log4fix.core.MemoryLogModel;
+import org.opentradingsolutions.log4fix.core.SessionKey;
+import org.opentradingsolutions.log4fix.datadictionary.ClassPathDataDictionaryLoader;
+import org.opentradingsolutions.log4fix.datadictionary.DataDictionaryLoader;
+
+import quickfix.SessionID;
+
 /**
  * @author Brian M. Coyner
  */
 public class ImporterModel {
 
-    private final SessionIdResolver sessionIdResolver;
-    private final ImporterMemoryLog importMemoryLog;
+	private final SessionIdResolver sessionIdResolver;
+	private final Map<SessionKey, ImporterMemoryLog> importMemoryLogs;
+	private final DataDictionaryLoader dl;
 
-    private String lastAccessedFilePath;
+	private String lastAccessedFilePath;
 
-    public ImporterModel(ImporterMemoryLog logger, SessionIdResolver sessionIdResolver) {
-        this.importMemoryLog = logger;
-        this.sessionIdResolver = sessionIdResolver;
-    }
+	public ImporterModel() {
+		this(new ImporterMemoryLog(), new PassThroughSessionIdResolver());
+	}
 
-    public ImporterModel(ImporterMemoryLog importerMemoryLog, SessionIdResolver sessionIdResolver, String initialFilePath) {
+	public ImporterModel(ImporterMemoryLog logger,
+			SessionIdResolver sessionIdResolver) {
+		importMemoryLogs = new HashMap<SessionKey, ImporterMemoryLog>();
+		this.sessionIdResolver = sessionIdResolver;
+		dl = new ClassPathDataDictionaryLoader();
+	}
 
-        this.importMemoryLog = importerMemoryLog;
-        this.sessionIdResolver = sessionIdResolver;
-        lastAccessedFilePath = initialFilePath;
-    }
+	public ImporterMemoryLog getImporterMemoryLog() {
+		return new ImporterMemoryLog(new GlazedListsMemoryLogModel(), dl);
+	}
 
-    public ImporterMemoryLog getImporterMemoryLog() {
-        return importMemoryLog;
-    }
+	public ImporterMemoryLog getImporterMemoryLog(SessionID session) {
+		SessionKey sk = new SessionKey(session);
+		ImporterMemoryLog log = importMemoryLogs.get(sk);
 
-    public SessionIdResolver getSessionIdResolver() {
-        return sessionIdResolver;
-    }
+		if (log == null) {
+			MemoryLogModel mlm = new GlazedListsMemoryLogModel(session);
+			log = new ImporterMemoryLog(mlm, dl);
+			log.setSessionId(session);
+			importMemoryLogs.put(sk, log);
+		}
+		return log;
+	}
 
-    public String getLastAccessedFilePath() {
-        return lastAccessedFilePath;
-    }
+	public SessionIdResolver getSessionIdResolver() {
+		return sessionIdResolver;
+	}
 
-    public void setLastAccessedFilePath(String lastAccessedFilePath) {
-        this.lastAccessedFilePath = lastAccessedFilePath;
-    }
+	public String getLastAccessedFilePath() {
+		return lastAccessedFilePath;
+	}
+
+	public void setLastAccessedFilePath(String lastAccessedFilePath) {
+		this.lastAccessedFilePath = lastAccessedFilePath;
+	}
+
+	public Map<SessionKey, ImporterMemoryLog> getMemoryLogMap() {
+		return importMemoryLogs;
+	}
+
+	public void clear() {
+		importMemoryLogs.clear();
+	}
 }

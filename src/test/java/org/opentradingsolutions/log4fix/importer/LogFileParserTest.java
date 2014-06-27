@@ -34,150 +34,159 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
-import junit.framework.TestCase;
-
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import junit.framework.TestCase;
+
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+import org.opentradingsolutions.log4fix.core.MessageQueueItemConstants;
+
 /**
  * These tests assert that a FIX message can be extracted from an input stream.
- * The {@link LogMessageParser} extracts messages starting with '8=' through the last
- * SOH found on the line.
- *
+ * The {@link LogMessageParser} extracts messages starting with '8=' through the
+ * last SOH found on the line.
+ * 
  * @author Brian M. Coyner
  */
-public class LogFileParserTest extends TestCase {
+public class LogFileParserTest extends TestCase implements
+		MessageQueueItemConstants {
 
-    public void testNullInputStreamFailsFast() {
-        try {
-            new LogMessageParser(null, new LinkedBlockingQueue<String>());
-            fail("A null InputStream should fail fast.");
+	public void testNullInputStreamFailsFast() {
+		try {
+			new LogMessageParser(null,
+					new LinkedBlockingQueue<MessageQueueItem>());
+			fail("A null InputStream should fail fast.");
 
-        } catch (IllegalArgumentException expected) {
-        }
-    }
+		} catch (IllegalArgumentException expected) {
+		}
+	}
 
-    public void testNullBlockingQueueFailsFast() {
-        try {
-            new LogMessageParser(getClass().getResourceAsStream("/"), null);
-            fail("A null BlockingQueue should fail fast.");
-        } catch (IllegalArgumentException expected) {
-        }
-    }
+	public void testNullBlockingQueueFailsFast() {
+		try {
+			new LogMessageParser(getClass().getResourceAsStream("/"), null);
+			fail("A null BlockingQueue should fail fast.");
+		} catch (IllegalArgumentException expected) {
+		}
+	}
 
-    public void testNonEmptyBlockingQueueFailsFast() {
-        try {
-            BlockingQueue<String> fixMessages =
-                    new LinkedBlockingQueue<String>();
-            assertTrue(fixMessages.add("Brian"));
-            new LogMessageParser(getClass().getResourceAsStream("/"), fixMessages);
-            fail("A non-empty BlockingQueue should fail fast.");
-        } catch (IllegalStateException expected) {
-        }
-    }
+	public void testNonEmptyBlockingQueueFailsFast() {
+		try {
+			BlockingQueue<MessageQueueItem> fixMessages = new LinkedBlockingQueue<MessageQueueItem>();
+			assertTrue(fixMessages.add(new MessageQueueItem("Brian",
+					Direction.INCOMING)));
+			new LogMessageParser(getClass().getResourceAsStream("/"),
+					fixMessages);
+			fail("A non-empty BlockingQueue should fail fast.");
+		} catch (IllegalStateException expected) {
+		}
+	}
 
-    public void testInputStreamWithNoFIXMessages() throws Exception {
+	public void testInputStreamWithNoFIXMessages() throws Exception {
 
-        String noFIXMessages = "No\nMessages Are\nIn This\nStream";
-        InputStream is = new ByteArrayInputStream(noFIXMessages.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+		String noFIXMessages = "No\nMessages Are\nIn This\nStream";
+		InputStream is = new ByteArrayInputStream(noFIXMessages.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(1, queue.size());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(1, queue.size());
+		assertEquals("DONE", queue.take());
+	}
 
-    public void testInputStreamWithOneFIXMessage() throws Exception {
-        String message = "8=FIX.4.2\u00019=456\u000135=D\u000110=123\u0001";
-        InputStream is = new ByteArrayInputStream(message.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+	public void testInputStreamWithOneFIXMessage() throws Exception {
+		String message = "8=FIX.4.2\u00019=456\u000135=D\u000110=123\u0001";
+		InputStream is = new ByteArrayInputStream(message.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(2, queue.size());
-        assertEquals(message, queue.take());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(2, queue.size());
+		assertEquals(message, queue.take());
+		assertEquals("DONE", queue.take());
+	}
 
-    public void testInputStreamWithTwoFIXMessages() throws Exception {
-        String message = "8=FIX.4.2\u00019=456\u000135=D\u000110=123\u0001";
+	public void testInputStreamWithTwoFIXMessages() throws Exception {
+		String message = "8=FIX.4.2\u00019=456\u000135=D\u000110=123\u0001";
 
-        String line = message + "\n" + message;
+		String line = message + "\n" + message;
 
-        // put a new line on the end
-        InputStream is = new ByteArrayInputStream(line.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+		// put a new line on the end
+		InputStream is = new ByteArrayInputStream(line.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(3, queue.size());
-        assertEquals(message, queue.take());
-        assertEquals(message, queue.take());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(3, queue.size());
+		assertEquals(message, queue.take());
+		assertEquals(message, queue.take());
+		assertEquals("DONE", queue.take());
+	}
 
-    /**
-     * The parser should attempt to "fix" the FIX message. In this case,
-     * the message is missing the last SOH character.
-     */
-    public void testFIXMessageThatDoesNotEndWithSOH() throws Exception {
-        String oneMessage = "8=FIX.4.2\u00019=456\u000135=D\u000110=123";
-        InputStream is = new ByteArrayInputStream(oneMessage.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+	/**
+	 * The parser should attempt to "fix" the FIX message. In this case, the
+	 * message is missing the last SOH character.
+	 */
+	public void testFIXMessageThatDoesNotEndWithSOH() throws Exception {
+		String oneMessage = "8=FIX.4.2\u00019=456\u000135=D\u000110=123";
+		InputStream is = new ByteArrayInputStream(oneMessage.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(2, queue.size());
-        assertEquals(oneMessage + "\u0001", queue.take());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(2, queue.size());
+		assertEquals(oneMessage + "\u0001", queue.take());
+		assertEquals("DONE", queue.take());
+	}
 
-    public void testFIXMessageWithNonStandardOneCharacterDelimeter() throws Exception {
-        String oneMessage = "8=FIX.4.2|9=456|35=D|10=123";
-        InputStream is = new ByteArrayInputStream(oneMessage.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+	public void testFIXMessageWithNonStandardOneCharacterDelimeter()
+			throws Exception {
+		String oneMessage = "8=FIX.4.2|9=456|35=D|10=123";
+		InputStream is = new ByteArrayInputStream(oneMessage.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(2, queue.size());
-        assertEquals(oneMessage.replaceAll("\\|", "\u0001") + "\u0001", queue.take());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(2, queue.size());
+		assertEquals(oneMessage.replaceAll("\\|", "\u0001") + "\u0001",
+				queue.take());
+		assertEquals("DONE", queue.take());
+	}
 
-    public void testFIXMessageWithJunkAtTheBeginningOfTheString()
-            throws Exception {
-        String junkInTheTrunkMessage = "JunkInTheTrunk";
-        String message = "8=FIX.4.2|9=456|35=D|10=123|";
+	public void testFIXMessageWithJunkAtTheBeginningOfTheString()
+			throws Exception {
+		String junkInTheTrunkMessage = "JunkInTheTrunk";
+		String message = "8=FIX.4.2|9=456|35=D|10=123|";
 
-        InputStream is = new ByteArrayInputStream((junkInTheTrunkMessage + message).getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+		InputStream is = new ByteArrayInputStream(
+				(junkInTheTrunkMessage + message).getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(2, queue.size());
-        assertEquals(message.replaceAll("\\|", "\u0001"), queue.take());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(2, queue.size());
+		assertEquals(message.replaceAll("\\|", "\u0001"), queue.take());
+		assertEquals("DONE", queue.take());
+	}
 
-    public void testIncompleteFIXMessage() throws Exception {
-        String message = "8=FIX.";
+	public void testIncompleteFIXMessage() throws Exception {
+		String message = "8=FIX.";
 
-        InputStream is = new ByteArrayInputStream(message.getBytes());
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
+		InputStream is = new ByteArrayInputStream(message.getBytes());
+		BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>();
 
-        parseAndWait(is, queue);
-        assertFalse(queue.isEmpty());
-        assertEquals(1, queue.size());
-        assertEquals("DONE", queue.take());
-    }
+		parseAndWait(is, queue);
+		assertFalse(queue.isEmpty());
+		assertEquals(1, queue.size());
+		assertEquals("DONE", queue.take());
+	}
 
-    private void parseAndWait(InputStream is, BlockingQueue<String> queue)
-            throws InterruptedException {
-        Thread t = new Thread(new LogMessageParser(is, queue));
-        t.start();
-        t.join(1000);
-    }
+	private void parseAndWait(InputStream is,
+			BlockingQueue<MessageQueueItem> queue) throws InterruptedException {
+		Thread t = new Thread(new LogMessageParser(is, queue));
+		t.start();
+		t.join(1000);
+	}
 }

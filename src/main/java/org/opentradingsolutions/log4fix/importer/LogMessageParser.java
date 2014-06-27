@@ -34,219 +34,248 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+import org.opentradingsolutions.log4fix.core.MessageQueueItemConstants;
+
 /**
- * Parses the input stream looking for raw FIX message strings. If a FIX
- * message string is found that string is added to the queue to be processed
- * later.
+ * Parses the input stream looking for raw FIX message strings. If a FIX message
+ * string is found that string is added to the queue to be processed later.
  * <p/>
- * Interrupting the thread causes the parser to add a poison pill onto the queue and
- * gracefully terminate. By default, the thread waits for a brief period of time
- * while attempting to add the poison pill. If the poison pill cannot be added to the
- * queue because the queue is full then the parser empties the queue, closes the input
- * stream, and terminates gracefully. It is assumed that if the poison pill cannot be
- * added that the consumer thread is no longer responding.
- *
+ * Interrupting the thread causes the parser to add a poison pill onto the queue
+ * and gracefully terminate. By default, the thread waits for a brief period of
+ * time while attempting to add the poison pill. If the poison pill cannot be
+ * added to the queue because the queue is full then the parser empties the
+ * queue, closes the input stream, and terminates gracefully. It is assumed that
+ * if the poison pill cannot be added that the consumer thread is no longer
+ * responding.
+ * 
  * @author Brian M. Coyner
  */
-public class LogMessageParser implements Runnable {
+public class LogMessageParser implements Runnable, MessageQueueItemConstants {
 
-    public static final String POISON_PILL = "DONE";
-    public static final String SOH_STRING = "\u0001";
+	public static final String POISON_PILL = "DONE";
+	public static final String SOH_STRING = "\u0001";
 
-    /**
-     * The amount of time (ms) to wait while trying to add the poison pill to the
-     * queue.
-     */
-    public static final int CANCELATION_TIMEOUT = 1000;
+	private String regexOut = ".*\\sSEND\\s.*|.*\\sSending\\s.*";
 
-    private final InputStream inputStream;
-    private final BlockingQueue<String> fixMessages;
+	private String regexIn = ".*\\sRECV\\s.*|.*\\sReceived\\s.*";
 
+	/**
+	 * The amount of time (ms) to wait while trying to add the poison pill to
+	 * the queue.
+	 */
+	public static final int CANCELATION_TIMEOUT = 1000;
 
-    /**
-     * The parser takes ownership of the input stream once the {@link #run()} method
-     * executes. The parser is responsible for closing the input stream upon completion
-     * of the {@link #run()} method. If the parser fails construction the input stream
-     * is left in its current state and the client is responsible for taking corrective
-     * action.
-     *
-     * @param inputStream a non-null stream that may or may not already
-     *                    contain data ready for reading (i.e. raw FIX message fields). It is assumed that
-     *                    the FIX message fields are delimited with the SOH character and terminated
-     *                    with a new line character.
-     * @param fixMessages a non-null, empty queue.
-     * @throws IllegalArgumentException if the input stream is null or the queue is null.
-     * @throws IllegalStateException    if the queue is not empty.
-     */
-    public LogMessageParser(InputStream inputStream, BlockingQueue<String> fixMessages) {
+	private final InputStream inputStream;
+	private final BlockingQueue<MessageQueueItem> fixMessages;
 
-        if (inputStream == null) {
-            throw new IllegalArgumentException("The log file input stream is null.");
-        }
+	/**
+	 * The parser takes ownership of the input stream once the {@link #run()}
+	 * method executes. The parser is responsible for closing the input stream
+	 * upon completion of the {@link #run()} method. If the parser fails
+	 * construction the input stream is left in its current state and the client
+	 * is responsible for taking corrective action.
+	 * 
+	 * @param inputStream
+	 *            a non-null stream that may or may not already contain data
+	 *            ready for reading (i.e. raw FIX message fields). It is assumed
+	 *            that the FIX message fields are delimited with the SOH
+	 *            character and terminated with a new line character.
+	 * @param fixMessages
+	 *            a non-null, empty queue.
+	 * @throws IllegalArgumentException
+	 *             if the input stream is null or the queue is null.
+	 * @throws IllegalStateException
+	 *             if the queue is not empty.
+	 */
+	public LogMessageParser(InputStream inputStream,
+			BlockingQueue<MessageQueueItem> fixMessages) {
 
-        if (fixMessages == null) {
-            closeInputStream(inputStream);
-            throw new IllegalArgumentException("The queue is null.");
-        }
+		if (inputStream == null) {
+			throw new IllegalArgumentException(
+					"The log file input stream is null.");
+		}
 
-        if (!fixMessages.isEmpty()) {
-            closeInputStream(inputStream);
-            throw new IllegalStateException("The queue must be initially empty.");
-        }
+		if (fixMessages == null) {
+			closeInputStream(inputStream);
+			throw new IllegalArgumentException("The queue is null.");
+		}
 
-        this.inputStream = inputStream;
-        this.fixMessages = fixMessages;
-    }
+		this.inputStream = inputStream;
+		this.fixMessages = fixMessages;
+	}
 
-    public void run() {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        try {
-            String line;
-            while ((line = getLine(reader)) != null) {
+	public void run() {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(
+				inputStream));
+		try {
+			String line;
+			while ((line = getLine(reader)) != null) {
+				if (Thread.interrupted()) {
+					break;
+				}
+				String rawMessage = extractFIXMessage(line, reader);
+				Direction direction = null;
 
-                if (Thread.interrupted()) {
-                    break;
-                }
-                String rawMessage = extractFIXMessage(line, reader);
-                if (rawMessage != null) {
-                    addMessageToQueue(rawMessage);
-                }
-            }
+				if (rawMessage != null) {
+					if (line.matches(regexOut)) {
+						direction = Direction.OUTGOING;
+					} else if (line.matches(regexIn)) {
+						direction = Direction.INCOMING;
+					} else {
+						throw new MessageDirectionException(line);
+					}
+					addMessageToQueue(rawMessage, direction);
+				}
+			}
 
-            addPoisonPillToQueue();
-        } finally {
-            try {
-                reader.close();
-            } catch (IOException ohWell) {
-            }
-        }
-    }
+			addPoisonPillToQueue();
+		} catch (MessageDirectionException mde) {
+			System.out.println(mde.getMessage());
+		} finally {
+			try {
+				reader.close();
+			} catch (IOException ohWell) {
+			}
+		}
+	}
 
-    private void addMessageToQueue(String rawMessage) {
-        try {
-            fixMessages.put(rawMessage);
-        } catch (InterruptedException e) {
-            // restore the interrupted state.
-            Thread.currentThread().interrupt();
-        }
-    }
+	private void addMessageToQueue(String rawMessage, Direction direction) {
+		try {
+			MessageQueueItem mqi = new MessageQueueItem(rawMessage, direction);
+			fixMessages.put(mqi);
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+			// restore the interrupted state.
+			Thread.currentThread().interrupt();
+		}
+	}
 
-    private void addPoisonPillToQueue() {
+	private void addPoisonPillToQueue() {
 
-        try {
-            if (!fixMessages.offer(POISON_PILL, CANCELATION_TIMEOUT, TimeUnit.MILLISECONDS)) {
-                fixMessages.clear();
-                fixMessages.offer(POISON_PILL);
-            } 
-        } catch (InterruptedException e) {
-            // the thread is going to exit. 
-        }
-    }
+		try {
+			if (!fixMessages.offer(new MessageQueueItem(POISON_PILL,
+					Direction.INCOMING), CANCELATION_TIMEOUT,
+					TimeUnit.MILLISECONDS)) {
+				fixMessages.clear();
+				fixMessages.offer(new MessageQueueItem(POISON_PILL,
+						Direction.INCOMING));
+			}
+		} catch (InterruptedException e) {
+			// the thread is going to exit.
+		}
+	}
 
-    private String getLine(BufferedReader reader) {
-        try {
-            return reader.readLine();
-        } catch (InterruptedIOException e) {
-            Thread.currentThread().interrupt();
-            return "JUNK";
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+	private String getLine(BufferedReader reader) {
+		try {
+			return reader.readLine();
+		} catch (InterruptedIOException e) {
+			Thread.currentThread().interrupt();
+			return "JUNK";
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-    private String extractFIXMessage(String line, BufferedReader reader) {
+	private String extractFIXMessage(String line, BufferedReader reader) {
 
+		int messageStartIndex = line.indexOf("8=");
+		if (messageStartIndex == -1) {
+			return null;
+		}
 
-        int messageStartIndex = line.indexOf("8=");
-        if (messageStartIndex == -1) {
-            return null;
-        }
+		try {
 
-        try {
+			// keep reading the input stream until we find the delimeter
+			String delimeter = getDelimeter(line);
+			while (delimeter == null) {
+				String nextLine = getLine(reader);
 
-            // keep reading the input stream until we find the delimeter
-            String delimeter = getDelimeter(line);
-            while (delimeter == null) {
-                String nextLine = getLine(reader);
+				// delimeter not found... message is not complete
+				if (nextLine == null) {
+					break;
+				}
 
-                // delimeter not found... message is not complete
-                if (nextLine == null) {
-                    break;
-                }
+				// keep building the string
+				line += nextLine;
+				delimeter = getDelimeter(line);
+			}
 
-                // keep building the string
-                line += nextLine;
-                delimeter = getDelimeter(line);
-            }
+			// we should have found the delimeter
+			int checksumFieldIndex = line.indexOf(delimeter + "10=");
+			while (checksumFieldIndex == -1) {
+				String nextLine = getLine(reader);
+				if (nextLine == null) {
+					break;
+				}
 
-            // we should have found the delimeter
-            int checksumFieldIndex = line.indexOf(delimeter + "10=");
-            while (checksumFieldIndex == -1) {
-                String nextLine = getLine(reader);
-                if (nextLine == null) {
-                    break;
-                }
+				line += nextLine;
+				checksumFieldIndex = line.indexOf(delimeter + "10=");
+			}
 
-                line += nextLine;
-                checksumFieldIndex = line.indexOf(delimeter + "10=");
-            }
+			if (checksumFieldIndex != -1) {
+				int checksumFieldEndIndex = line.indexOf(delimeter,
+						checksumFieldIndex + 1);
+				if (checksumFieldEndIndex == -1) {
+					checksumFieldEndIndex = checksumFieldIndex + 6;
+				}
+				int offset = checksumFieldEndIndex - checksumFieldIndex + 1;
 
-            if (checksumFieldIndex != -1) {
-                int checksumFieldEndIndex = line.indexOf(delimeter, checksumFieldIndex + 1);
-                if (checksumFieldEndIndex == -1) {
-                    checksumFieldEndIndex = checksumFieldIndex + 6;
-                }
-                int offset = checksumFieldEndIndex - checksumFieldIndex + 1;
+				line = correctDelimeter(line, delimeter);
+				line = line.substring(messageStartIndex, checksumFieldIndex
+						+ offset);
+				if (!line.endsWith(SOH_STRING)) {
+					line += SOH_STRING;
+				}
+				return line;
+			}
+		} catch (Throwable failure) {
+			return "ERROR: " + line;
+		}
+		return null;
+	}
 
-                line = correctDelimeter(line, delimeter);
-                line = line.substring(messageStartIndex, checksumFieldIndex + offset);
-                if (!line.endsWith(SOH_STRING)) {
-                    line += SOH_STRING;
-                }
-                return line;
-            }
-        } catch (Throwable failure) {
-            return "ERROR: " + line;
-        }
-        return null;
-    }
+	private String correctDelimeter(String line, String delimeter) {
 
-    private String correctDelimeter(String line, String delimeter) {
+		// body length field is arbitrary... we use this field to figure out
+		// if the log file uses a different delimeter other than SOH. An
+		// assumption
+		// is made that the delimeter is the same for all fields. If not, then
+		// an exception may raise stopping the thread.
+		if (!delimeter.equals(SOH_STRING)) {
+			if (delimeter.length() == 1) {
+				line = line.replaceAll("\\" + delimeter, SOH_STRING);
+			} else {
+				line = line.replaceAll(delimeter, SOH_STRING);
+			}
+		}
 
-        // body length field is arbitrary... we use this field to figure out
-        // if the log file uses a different delimeter other than SOH. An assumption
-        // is made that the delimeter is the same for all fields. If not, then
-        // an exception may raise stopping the thread.
-        if (!delimeter.equals(SOH_STRING)) {
-            if (delimeter.length() == 1) {
-                line = line.replaceAll("\\" + delimeter, SOH_STRING);
-            } else {
-                line = line.replaceAll(delimeter, SOH_STRING);
-            }
-        }
+		return line;
+	}
 
-        return line;
-    }
+	private String getDelimeter(String line) {
+		int endIndex = line.indexOf("9=");
+		if (endIndex == -1) {
+			return null;
+		}
+		return line.substring(endIndex - 1, endIndex);
+	}
 
-    private String getDelimeter(String line) {
-        int endIndex = line.indexOf("9=");
-        if (endIndex == -1) {
-            return null;
-        }
-        return line.substring(endIndex - 1, endIndex);
-    }
+	private void closeInputStream(InputStream inputStream) {
+		if (inputStream != null) {
+			try {
+				inputStream.close();
+			} catch (IOException ohWell) {
+			}
+		}
 
-    private void closeInputStream(InputStream inputStream) {
-        if (inputStream != null) {
-            try {
-                inputStream.close();
-            } catch (IOException ohWell) {
-            }
-        }
-
-    }
+	}
 }

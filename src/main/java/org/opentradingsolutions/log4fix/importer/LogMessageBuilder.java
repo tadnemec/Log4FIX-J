@@ -34,130 +34,81 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
-import org.opentradingsolutions.log4fix.core.LogMessage;
-import quickfix.SessionID;
-import quickfix.field.MsgType;
-
-import java.util.Date;
 import java.util.concurrent.BlockingQueue;
+
+import org.opentradingsolutions.log4fix.core.LogMessage;
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+import org.opentradingsolutions.log4fix.core.MessageQueueItemConstants;
+
+import quickfix.SessionID;
 
 /**
  * @author Brian M. Coyner
  */
-public class LogMessageBuilder implements Runnable {
+public class LogMessageBuilder implements Runnable, MessageQueueItemConstants {
 
-    public static final String EVENT_START = "Start";
-    public static final String EVENT_ERROR = "ERROR";
-    public static final String EVENT_MESSAGES_IMPORTED = "Messages Imported";
-    public static final String EVENT_COMPLETE = "Complete";
+	public static final String EVENT_START = "Start";
+	public static final String EVENT_ERROR = "ERROR";
+	public static final String EVENT_MESSAGES_IMPORTED = "Messages Imported";
+	public static final String EVENT_COMPLETE = "Complete";
 
-    private final BlockingQueue<String> fixMessages;
-    private final ImporterModel model;
+	private final BlockingQueue<MessageQueueItem> fixMessages;
+	private final ImporterModel model;
 
-    private SessionID senderSessionId;
+	public LogMessageBuilder(ImporterModel model,
+			BlockingQueue<MessageQueueItem> fixMessages) {
+		this.model = model;
+		this.fixMessages = fixMessages;
+	}
 
-    public LogMessageBuilder(ImporterModel model, BlockingQueue<String> fixMessages) {
-        this.model = model;
-        this.fixMessages = fixMessages;
-    }
+	public void run() {
 
-    public void run() {
+		try {
+			while (true) {
+				MessageQueueItem mqi = fixMessages.take();
+				String rawMessage = mqi.getRawMessage();
+				if ("DONE".equals(rawMessage)) {
+					break;
+				} else if (rawMessage.startsWith(EVENT_ERROR)) {
+					continue;
+				}
 
-        ImporterMemoryLog logger = model.getImporterMemoryLog();
+				int beginIndex = 2; // 8= takes up 0 and 1... value starts at 2.
+				int endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER,
+						beginIndex);
+				String beginString = rawMessage.substring(2, endIndex);
 
-        logger.onEvent(EVENT_START + ": " + new Date());
-        int messageCount = 0;
+				beginIndex = rawMessage.indexOf("35=") + 3;
+				endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER,
+						beginIndex);
 
-        try {
-            while (true) {
-                String rawMessage = fixMessages.take();
-                if ("DONE".equals(rawMessage)) {
-                    break;
-                } else if (rawMessage.startsWith(EVENT_ERROR)) {
-                    logger.onEvent(rawMessage);
-                    continue;
-                }
+				beginIndex = rawMessage.indexOf("49=") + 3;
+				endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER,
+						beginIndex);
+				String senderCompId = rawMessage
+						.substring(beginIndex, endIndex);
 
-                int beginIndex = 2; // 8= takes up 0 and 1... value starts at 2.
-                int endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER, beginIndex);
-                String beginString = rawMessage.substring(2, endIndex);
+				beginIndex = rawMessage.indexOf("56=") + 3;
+				endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER,
+						beginIndex);
+				String targetCompId = rawMessage
+						.substring(beginIndex, endIndex);
+				SessionID currentSessionId = new SessionID(beginString,
+						senderCompId, targetCompId);
 
-                beginIndex = rawMessage.indexOf("35=", endIndex) + 3;
-                endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER, beginIndex);
-                String messageType = rawMessage.substring(beginIndex, endIndex);
+				ImporterMemoryLog logger = model
+						.getImporterMemoryLog(currentSessionId);
 
-                beginIndex = rawMessage.indexOf("49=", endIndex) + 3;
-                endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER, beginIndex);
-                String senderCompId = rawMessage.substring(beginIndex, endIndex);
+				if (mqi.getDirection() == Direction.INCOMING) {
+					logger.onIncoming(rawMessage);
+				} else {
+					logger.onOutgoing(rawMessage);
+				}
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			System.exit(-1);
+		}
 
-                beginIndex = rawMessage.indexOf("56=", endIndex) + 3;
-                endIndex = rawMessage.indexOf(LogMessage.SOH_DELIMETER, beginIndex);
-                String targetCompId = rawMessage.substring(beginIndex, endIndex);
-
-                SessionID currentSessionId = new SessionID(beginString, senderCompId, targetCompId);
-
-                // hopefully the first message we find is the initiator's logon...
-                // @todo - currently it is assumed that the person running this
-                // application is always the initiator. Fix this.
-                if (senderSessionId == null) {
-                    if (MsgType.LOGON.equals(messageType)) {
-                        senderSessionId = currentSessionId;
-                    } else {
-                        // the logon message is missing... resolve the session Id.
-                        currentSessionId = model.getSessionIdResolver().resolveSessionId(
-                                currentSessionId.getBeginString(),
-                                currentSessionId.getSenderCompID(),
-                                currentSessionId.getTargetCompID());
-                        senderSessionId = currentSessionId;
-                    }
-
-                    logger.setSessionId(senderSessionId);
-                    logger.onEvent("Initiator Session Id: " + senderSessionId);
-                }
-
-                if (isIncomingMessage(currentSessionId, senderSessionId)) {
-                    logger.onIncoming(rawMessage);
-                } else {
-                    logger.onOutgoing(rawMessage);
-                }
-                messageCount++;
-            }
-        } catch (InterruptedException e) {
-            logger.onEvent("**** ERROR ****");
-            logger.onEvent("The message builder thread was interrupted due to the " +
-                    "following error:");
-            logger.onEvent(" - " + e.getMessage());
-
-            // print some extra information about the failure if multiple sessions
-            // were found in the log file.
-            if (e instanceof MultipleSessionsException) {
-                MultipleSessionsException mse = (MultipleSessionsException) e;
-                logger.onEvent(" - First Session Id: " + mse.getFirstSessionId());
-                logger.onEvent(" - Second Session Id: " + mse.getSecondSessionId());
-            }
-
-            logger.onEvent("****  END  ****");
-        } finally {
-            logger.onEvent(EVENT_MESSAGES_IMPORTED + ": " + messageCount);
-            logger.onEvent(EVENT_COMPLETE + ": " + new Date());
-        }
-    }
-
-    private boolean isIncomingMessage(SessionID currentSessionId,
-                                      SessionID senderSessionId) throws InterruptedException {
-
-        boolean incoming;
-        if (senderSessionId.getSenderCompID().equals(currentSessionId.getSenderCompID())
-                && senderSessionId.getTargetCompID().equals(currentSessionId.getTargetCompID())) {
-
-            incoming = false;
-        } else if (senderSessionId.getSenderCompID().equals(currentSessionId.getTargetCompID())
-                && senderSessionId.getTargetCompID().equals(currentSessionId.getSenderCompID())) {
-
-            incoming = true;
-        } else {
-            throw new MultipleSessionsException(senderSessionId, currentSessionId);
-        }
-        return incoming;
-    }
+	}
 }

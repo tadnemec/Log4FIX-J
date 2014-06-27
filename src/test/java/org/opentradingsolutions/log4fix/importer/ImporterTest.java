@@ -35,7 +35,9 @@
 package org.opentradingsolutions.log4fix.importer;
 
 import junit.framework.TestCase;
+
 import org.opentradingsolutions.log4fix.core.MemoryLogModel;
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
 import org.opentradingsolutions.log4fix.core.MockMemoryLogModel;
 import org.opentradingsolutions.log4fix.datadictionary.ClassPathDataDictionaryLoader;
 import org.opentradingsolutions.log4fix.datadictionary.DataDictionaryLoader;
@@ -79,7 +81,7 @@ public class ImporterTest extends TestCase {
 
 
         // bounded buffer.
-        BlockingQueue<String> queue = new LinkedBlockingQueue<String>(1);
+        BlockingQueue<MessageQueueItem> queue = new LinkedBlockingQueue<MessageQueueItem>(1);
         importer = new Importer(queue);
     }
 

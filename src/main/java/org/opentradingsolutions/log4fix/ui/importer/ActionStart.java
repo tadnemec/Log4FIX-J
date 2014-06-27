@@ -34,71 +34,105 @@
 
 package org.opentradingsolutions.log4fix.ui.importer;
 
-import org.opentradingsolutions.log4fix.importer.Importer;
-import org.opentradingsolutions.log4fix.importer.ImporterCallback;
-import org.opentradingsolutions.log4fix.importer.ImporterModel;
-
-import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 
+import javax.swing.AbstractAction;
+import javax.swing.JFileChooser;
+
+import org.opentradingsolutions.log4fix.importer.Importer;
+import org.opentradingsolutions.log4fix.importer.ImporterCallback;
+import org.opentradingsolutions.log4fix.importer.ImporterModel;
+
 /**
  * @author Brian M. Coyner
  */
 public class ActionStart extends AbstractAction {
 
-    private final Importer importer;
-    private final ImporterModel model;
-    private final ImporterCallback callback;
-    private final Executor executor;
+	private static final long serialVersionUID = 1L;
+	private final Importer importer;
+	private final ImporterModel model;
+	private final ImporterCallback callback;
+	private final Executor executor;
 
-    private JFileChooser fileChooser;
+	private JFileChooser fileChooser;
 
-    public ActionStart(Importer importer, ImporterModel model, ImporterCallback callback) {
-        super("Import");
+	private File currentFile = null;
+	private long timeStamp;
 
-        this.model = model;
-        this.importer = importer;
-        this.callback = callback;
-        executor = new ThreadPerTaskExecutor();
-    }
+	public File getCurrentFile() {
+		return currentFile;
+	}
 
-    public void actionPerformed(ActionEvent e) {
-        maybeCreateFileChooser();
+	public long getTimeStamp() {
+		return timeStamp;
+	}
 
-        if (openLogFile(fileChooser)) {
-            final File selectedFile = fileChooser.getSelectedFile();
-            importFile(selectedFile);
+	public void setTimeStamp(long l) {
+		timeStamp = l;
+	}
 
-        }
-    }
+	public void setCurrentFile(File file) {
+		currentFile = file;
+		if (file != null) {
+			setTimeStamp(file.lastModified());
+		} else {
+			setTimeStamp(0);
+		}
+	}
 
-    public void importFile(final File selectedFile) {
-        model.setLastAccessedFilePath(selectedFile.getPath());
+	public ActionStart(Importer importer, ImporterModel model,
+			ImporterCallback callback) {
+		super("Import");
 
-        Runnable task = new Runnable() {
-            public void run() {
-                try {
-                    importer.start(model, new FileInputStream(selectedFile), callback);
-                } catch (IOException ioException) {
-                    throw new RuntimeException(ioException);
-                }
-            }
-        };
-        executor.execute(task);
-    }
+		this.model = model;
+		this.importer = importer;
+		this.callback = callback;
+		executor = new ThreadPerTaskExecutor();
+	}
 
-    private void maybeCreateFileChooser() {
-        if (fileChooser == null) {
-            fileChooser = new JFileChooser(model.getLastAccessedFilePath());
-            fileChooser.setFileFilter(new LogFileFilter());
-        }
-    }
+	public void actionPerformed(ActionEvent e) {
+		maybeCreateFileChooser();
 
-    private boolean openLogFile(JFileChooser fileChooser) {
-        return fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION;
-    }
+		if (openLogFile(fileChooser)) {
+			final File selectedFile = fileChooser.getSelectedFile();
+			importFile(selectedFile);
+		}
+	}
+
+	public void importFile(final File selectedFile) {
+		currentFile = selectedFile;
+		if (currentFile != null) {
+			setTimeStamp(currentFile.lastModified());
+		} else {
+			setTimeStamp(0);
+		}
+		model.setLastAccessedFilePath(selectedFile.getPath());
+
+		Runnable task = new Runnable() {
+			public void run() {
+				try {
+					importer.start(model, new FileInputStream(selectedFile),
+							callback);
+				} catch (IOException ioException) {
+					throw new RuntimeException(ioException);
+				}
+			}
+		};
+		executor.execute(task);
+	}
+
+	private void maybeCreateFileChooser() {
+		if (fileChooser == null) {
+			fileChooser = new JFileChooser(model.getLastAccessedFilePath());
+			fileChooser.setFileFilter(new LogFileFilter());
+		}
+	}
+
+	private boolean openLogFile(JFileChooser fileChooser) {
+		return fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION;
+	}
 }

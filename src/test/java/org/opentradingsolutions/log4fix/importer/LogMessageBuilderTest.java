@@ -34,93 +34,104 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
-import junit.framework.TestCase;
-import org.opentradingsolutions.log4fix.core.LogEvent;
-import org.opentradingsolutions.log4fix.core.MemoryLogModel;
-import org.opentradingsolutions.log4fix.core.MockMemoryLogModel;
-import org.opentradingsolutions.log4fix.datadictionary.DataDictionaryLoader;
-import org.opentradingsolutions.log4fix.datadictionary.SessionDataDictionaryLoader;
-
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import junit.framework.TestCase;
+
+import org.opentradingsolutions.log4fix.core.LogEvent;
+import org.opentradingsolutions.log4fix.core.MemoryLogModel;
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+import org.opentradingsolutions.log4fix.core.MessageQueueItemConstants;
+import org.opentradingsolutions.log4fix.core.MockMemoryLogModel;
+import org.opentradingsolutions.log4fix.datadictionary.DataDictionaryLoader;
+import org.opentradingsolutions.log4fix.datadictionary.SessionDataDictionaryLoader;
+
 /**
  * @author Brian M. Coyner
  */
-public class LogMessageBuilderTest extends TestCase {
+public class LogMessageBuilderTest extends TestCase implements
+		MessageQueueItemConstants {
 
-    private BlockingQueue<String> queue;
-    private Thread thread;
-    private ImporterModel model;
-    
-    @Override
-    protected void setUp() {
-        model = createModel();
+	private BlockingQueue<MessageQueueItem> queue;
+	private Thread thread;
+	private ImporterModel model;
 
-        queue = new LinkedBlockingQueue<String>(1);
-        LogMessageBuilder builder = new LogMessageBuilder(model, queue);
-        thread = new Thread(builder);
-    }
+	@Override
+	protected void setUp() {
+		model = createModel();
 
-    @Override
-    protected void tearDown() throws Exception {
-        assertFalse("The builder thread is still running.", thread.isAlive());
-    }
+		queue = new LinkedBlockingQueue<MessageQueueItem>(1);
+		LogMessageBuilder builder = new LogMessageBuilder(model, queue);
+		thread = new Thread(builder);
+	}
 
-    public void testPoisonPillTerminatesThread() throws Exception {
+	@Override
+	protected void tearDown() throws Exception {
+		assertFalse("The builder thread is still running.", thread.isAlive());
+	}
 
-        // start the thread
-        thread.start();
+	public void testPoisonPillTerminatesThread() throws Exception {
 
-        // add the poison pill to the queue
-        queue.put("DONE");
+		// start the thread
+		thread.start();
 
-        // wait for the poison to take effect
-        thread.join(500);
+		// add the poison pill to the queue
+		queue.put(new MessageQueueItem("DONE", Direction.INCOMING));
 
-        assertFalse("The builder thread is still running.", thread.isAlive());
-    }
+		// wait for the poison to take effect
+		thread.join(500);
 
-    public void testLogBuilderEventMessages() throws Exception {
-        thread.start();
+		assertFalse("The builder thread is still running.", thread.isAlive());
+	}
 
-        queue.put("DONE");
-        thread.join(500);
+	public void testLogBuilderEventMessages() throws Exception {
+		thread.start();
 
-        ImporterMemoryLog logger = model.getImporterMemoryLog();
-        MemoryLogModel memoryModel = logger.getMemoryLogModel();
-        List<LogEvent> events = memoryModel.getEvents();
-        assertEquals("Event Count.", 3, events.size());
-        assertTrue(events.get(0).getEvent().startsWith(LogMessageBuilder.EVENT_START));
-        assertTrue(events.get(1).getEvent().startsWith(LogMessageBuilder.EVENT_MESSAGES_IMPORTED));
-        assertTrue(events.get(2).getEvent().startsWith(LogMessageBuilder.EVENT_COMPLETE));
-    }
+		queue.put(new MessageQueueItem("DONE", Direction.INCOMING));
+		thread.join(500);
 
-    public void testErrorMessage() throws Exception {
-        thread.start();
+		ImporterMemoryLog logger = model.getImporterMemoryLog();
+		MemoryLogModel memoryModel = logger.getMemoryLogModel();
+		List<LogEvent> events = memoryModel.getEvents();
+		assertEquals("Event Count.", 3, events.size());
+		assertTrue(events.get(0).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_START));
+		assertTrue(events.get(1).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_MESSAGES_IMPORTED));
+		assertTrue(events.get(2).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_COMPLETE));
+	}
 
-        final String errorMessage = LogMessageBuilder.EVENT_ERROR + " Test Error";
-        queue.put(errorMessage);
-        queue.put("DONE");
-        thread.join(500);
+	public void testErrorMessage() throws Exception {
+		thread.start();
 
-        ImporterMemoryLog logger = model.getImporterMemoryLog();
-        MemoryLogModel memoryModel = logger.getMemoryLogModel();
-        List<LogEvent> events = memoryModel.getEvents();
-        assertEquals("Event Count.", 4, events.size());
-        assertTrue(events.get(0).getEvent().startsWith(LogMessageBuilder.EVENT_START));
-        assertEquals(events.get(1).getEvent(), errorMessage);
-        assertTrue(events.get(2).getEvent().startsWith(LogMessageBuilder.EVENT_MESSAGES_IMPORTED));
-        assertTrue(events.get(3).getEvent().startsWith(LogMessageBuilder.EVENT_COMPLETE));
-    }
+		final String errorMessage = LogMessageBuilder.EVENT_ERROR
+				+ " Test Error";
+		queue.put(new MessageQueueItem(errorMessage, Direction.INCOMING));
+		queue.put(new MessageQueueItem("DONE", Direction.INCOMING));
+		thread.join(500);
 
+		ImporterMemoryLog logger = model.getImporterMemoryLog();
+		MemoryLogModel memoryModel = logger.getMemoryLogModel();
+		List<LogEvent> events = memoryModel.getEvents();
+		assertEquals("Event Count.", 4, events.size());
+		assertTrue(events.get(0).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_START));
+		assertEquals(events.get(1).getEvent(), errorMessage);
+		assertTrue(events.get(2).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_MESSAGES_IMPORTED));
+		assertTrue(events.get(3).getEvent()
+				.startsWith(LogMessageBuilder.EVENT_COMPLETE));
+	}
 
-    private ImporterModel createModel() {
-        DataDictionaryLoader dataDictionaryLoader = new SessionDataDictionaryLoader();
-        SessionIdResolver sessionIdResolver = new PassThroughSessionIdResolver();
-        MemoryLogModel memoryLogModel = new MockMemoryLogModel();
-        ImporterMemoryLog memoryLog = new ImporterMemoryLog(memoryLogModel, dataDictionaryLoader);
-        return new ImporterModel(memoryLog, sessionIdResolver);
-    }
+	private ImporterModel createModel() {
+		DataDictionaryLoader dataDictionaryLoader = new SessionDataDictionaryLoader();
+		SessionIdResolver sessionIdResolver = new PassThroughSessionIdResolver();
+		MemoryLogModel memoryLogModel = new MockMemoryLogModel();
+		ImporterMemoryLog memoryLog = new ImporterMemoryLog(memoryLogModel,
+				dataDictionaryLoader);
+		return new ImporterModel(memoryLog, sessionIdResolver);
+	}
 }

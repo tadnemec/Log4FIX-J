@@ -34,86 +34,102 @@
 
 package org.opentradingsolutions.log4fix.core;
 
-import ca.odell.glazedlists.BasicEventList;
-import ca.odell.glazedlists.EventList;
-import ca.odell.glazedlists.FilterList;
-import ca.odell.glazedlists.impl.ThreadSafeList;
-import org.opentradingsolutions.log4fix.ui.importer.ThreadPerTaskExecutor;
-import quickfix.SessionID;
-
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.concurrent.Executor;
 
+import org.opentradingsolutions.log4fix.ui.importer.ThreadPerTaskExecutor;
+
+import quickfix.SessionID;
+import ca.odell.glazedlists.BasicEventList;
+import ca.odell.glazedlists.EventList;
+import ca.odell.glazedlists.FilterList;
+import ca.odell.glazedlists.impl.ThreadSafeList;
+
 /**
  * A thread-safe implementation of the memory core. Thread-safety comes by
  * wrapping the <code>BasicEventList</code> with a <code>ThreadSafeList</code>.
- * All access to the list always executes through the <code>ThreadSafeList</code>.
- *
+ * All access to the list always executes through the
+ * <code>ThreadSafeList</code>.
+ * 
  * @author Brian M. Coyner
  */
 public class GlazedListsMemoryLogModel implements MemoryLogModel {
 
+	private final FilterList<LogMessage> messages;
+	private final EventList<LogEvent> events;
+	private final PropertyChangeSupport support;
+	private final ThreadSafeList<LogMessage> underlying;
+	private SessionID sessionId;
 
-    private final FilterList<LogMessage> messages;
-    private final EventList<LogEvent> events;
-    private final PropertyChangeSupport support;
-    private final ThreadSafeList<LogMessage> underlying;
-    private SessionID sessionId;
+	public GlazedListsMemoryLogModel() {
+		this(null);
+	}
 
-    public GlazedListsMemoryLogModel() {
-        this(null);
-    }
+	// asdf
 
-    public GlazedListsMemoryLogModel(SessionID sessionId) {
-        underlying = new ThreadSafeList<LogMessage>(new BasicEventList<LogMessage>());
-        messages = new FilterList<LogMessage>(underlying);
-        events = new ThreadSafeList<LogEvent>(new BasicEventList<LogEvent>());
-        this.sessionId = sessionId;
-        support = new PropertyChangeSupport(this);
-    }
+	public GlazedListsMemoryLogModel(SessionID sessionId,
+			FilterList<LogMessage> messages) {
+		underlying = new ThreadSafeList<LogMessage>(
+				new BasicEventList<LogMessage>());
+		this.messages = messages;
+		this.sessionId = sessionId;
+		events = new ThreadSafeList<LogEvent>(new BasicEventList<LogEvent>());
+		support = new PropertyChangeSupport(this);
+	}
 
-    public void clear() {
+	public GlazedListsMemoryLogModel(SessionID sessionId) {
+		underlying = new ThreadSafeList<LogMessage>(
+				new BasicEventList<LogMessage>());
+		messages = new FilterList<LogMessage>(underlying);
+		events = new ThreadSafeList<LogEvent>(new BasicEventList<LogEvent>());
+		this.sessionId = sessionId;
+		support = new PropertyChangeSupport(this);
+	}
 
-        Runnable r = new Runnable() {
-            public void run() {
-                // must clear the underlying list... clearing the filter list only clears the
-                // values in the filter
-                underlying.clear();
-                events.clear();
-                setSessionId(null);
-            }
-        };
-        Executor perTaskExecutor = new ThreadPerTaskExecutor();
-        perTaskExecutor.execute(r);
-    }
+	public void clear() {
 
-    public void addPropertyChangeListener(PropertyChangeListener propertyChangeListener) {
-        support.addPropertyChangeListener(propertyChangeListener);
-    }
+		Runnable r = new Runnable() {
+			public void run() {
+				// must clear the underlying list... clearing the filter list
+				// only clears the
+				// values in the filter
+				underlying.clear();
+				events.clear();
+				setSessionId(null);
+			}
+		};
+		Executor perTaskExecutor = new ThreadPerTaskExecutor();
+		perTaskExecutor.execute(r);
+	}
 
-    public SessionID getSessionId() {
-        return sessionId;
-    }
+	public void addPropertyChangeListener(
+			PropertyChangeListener propertyChangeListener) {
+		support.addPropertyChangeListener(propertyChangeListener);
+	}
 
-    public void setSessionId(SessionID sessionId) {
-        this.sessionId = sessionId;
-        support.firePropertyChange("sessionId", null, sessionId);
-    }
+	public SessionID getSessionId() {
+		return sessionId;
+	}
 
-    public FilterList<LogMessage> getMessages() {
-        return messages;
-    }
+	public void setSessionId(SessionID sessionId) {
+		this.sessionId = sessionId;
+		support.firePropertyChange("sessionId", null, sessionId);
+	}
 
-    public EventList<LogEvent> getEvents() {
-        return events;
-    }
+	public FilterList<LogMessage> getMessages() {
+		return messages;
+	}
 
-    public void addLogMessage(LogMessage logMessage) {
-        messages.add(logMessage);
-    }
+	public EventList<LogEvent> getEvents() {
+		return events;
+	}
 
-    public void addLogEvent(LogEvent logEvent) {
-        events.add(logEvent);
-    }
+	public void addLogMessage(LogMessage logMessage) {
+		messages.add(logMessage);
+	}
+
+	public void addLogEvent(LogEvent logEvent) {
+		events.add(logEvent);
+	}
 }

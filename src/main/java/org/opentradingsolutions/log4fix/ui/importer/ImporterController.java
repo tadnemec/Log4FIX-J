@@ -34,74 +34,183 @@
 
 package org.opentradingsolutions.log4fix.ui.importer;
 
+import java.io.File;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map.Entry;
+
+import javax.swing.Action;
+import javax.swing.JComponent;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
+
+import org.opentradingsolutions.log4fix.core.GlazedListsMemoryLogModel;
+import org.opentradingsolutions.log4fix.core.LogMessage;
+import org.opentradingsolutions.log4fix.core.MemoryLogModel;
+import org.opentradingsolutions.log4fix.core.SessionKey;
+import org.opentradingsolutions.log4fix.core.Tab;
 import org.opentradingsolutions.log4fix.importer.Importer;
 import org.opentradingsolutions.log4fix.importer.ImporterCallback;
+import org.opentradingsolutions.log4fix.importer.ImporterMemoryLog;
 import org.opentradingsolutions.log4fix.importer.ImporterModel;
+import org.opentradingsolutions.log4fix.ui.messages.ViewBuilder;
 
-import javax.swing.*;
-import java.io.File;
+import ca.odell.glazedlists.BasicEventList;
+import ca.odell.glazedlists.FilterList;
+import ca.odell.glazedlists.impl.ThreadSafeList;
 
 /**
  * @author Brian M. Coyner
  */
+
+// TODO: Refactor tab construction to ViewBuilder
 public class ImporterController {
 
-    private final ActionStart start;
-    private final Action stop;
-    private final JLabel busyText;
+	private final ActionStart start;
+	private final Action stop;
+	private final JLabel busyText;
+	private JTabbedPane tabPane;
+	private List<Tab> masterTabList = new LinkedList<Tab>();
+	private ImporterModel model;
 
-    public ImporterController(Importer service, ImporterModel model) {
-        start = new ActionStart(service, model, new DefaultImporterController());
-        stop = new ActionStop(service);
+	private JFrame frame;
 
-        busyText = new JLabel();
-        busyText.setVisible(false);
-    }
+	public ImporterController() {
+		this(new Importer(), new ImporterModel());
+	}
 
-    public Action getStart() {
-        return start;
-    }
+	public ImporterController(Importer service, ImporterModel model) {
+		start = new ActionStart(service, model, new DefaultImporterController());
+		stop = new ActionStop(service);
 
-    public Action getStop() {
-        return stop;
-    }
+		busyText = new JLabel();
+		busyText.setVisible(false);
+		this.model = model;
+	}
 
-    public JComponent getBusyIcon() {
-        return busyText;
-    }
+	public void setTabPane(JTabbedPane pane) {
+		tabPane = pane;
+	}
 
-    public void importWithFile(File file) {
-        start.importFile(file);
-    }
+	public void setFrame(JFrame frame) {
+		this.frame = frame;
+	}
 
-    private class DefaultImporterController implements ImporterCallback {
-        public void starting() {
-            SwingUtilities.invokeLater(new Runnable() {
-                public void run() {
+	public void combinedSearch(String tab, String fix) {
+		tabPane.removeAll();
+		for (Tab t : masterTabList) {
+			if (t.getTitle().contains(tab)) {
+				if (fix.length() != 0) {
+					boolean keep = false;
+					ThreadSafeList<LogMessage> underlying = new ThreadSafeList<LogMessage>(
+							new BasicEventList<LogMessage>());
+					FilterList<LogMessage> lms = new FilterList<LogMessage>(
+							underlying);
+					for (LogMessage lm : t.getModel().getMessages()) {
+						if (lm.getRawMessage().contains(fix)) {
+							keep = true;
+							lms.add(lm);
+						}
+					}
+					if (keep) {
+						tabPane.addTab(
+								t.getTitle() + " (" + lms.size() + ")",
+								ViewBuilder
+										.createTabForSession(new GlazedListsMemoryLogModel(
+												null, lms)));
+					}
+				} else {
+					tabPane.addTab(t.getTitle() + " (" + t.getCount() + ")",
+							t.getComponent());
+				}
+			}
+		}
+	}
 
-                    busyText.setText("Importing...");
-                    busyText.setVisible(true);
-                    start.setEnabled(false);
-                    stop.setEnabled(true);
-                }
-            });
-        }
+	public void resetTabSearch() {
+		tabPane.removeAll();
+		for (Tab t : masterTabList) {
+			tabPane.addTab(t.getTitle() + " (" + t.getCount() + ")",
+					t.getComponent());
+		}
+	}
 
-        public void canceling() {
-            busyText.setText("Cancelling...");
-        }
+	public Action getStart() {
+		return start;
+	}
 
-        public void done() {
+	public Action getStop() {
+		return stop;
+	}
 
-            SwingUtilities.invokeLater(new Runnable() {
+	public JComponent getBusyIcon() {
+		return busyText;
+	}
 
-                public void run() {
-                    busyText.setVisible(false);
-                    start.setEnabled(true);
-                    stop.setEnabled(false);
+	public void importWithFile(File file) {
+		start.importFile(file);
+	}
 
-                }
-            });
-        }
-    }
+	public void clear() {
+		model.clear();
+		if (masterTabList != null && !masterTabList.isEmpty()) {
+			masterTabList.clear();
+		}
+		tabPane.removeAll();
+	}
+
+	private class DefaultImporterController implements ImporterCallback {
+		public void starting() {
+			clear();
+			if (start.getCurrentFile() != null) {
+				frame.setTitle("Log4FIX - "
+						+ start.getCurrentFile().getAbsolutePath());
+			}
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					busyText.setText("Importing...");
+					busyText.setVisible(true);
+					start.setEnabled(false);
+					stop.setEnabled(true);
+				}
+			});
+		}
+
+		public void canceling() {
+			busyText.setText("Cancelling...");
+			start.setTimeStamp(0);
+			frame.setTitle("Log4FIX");
+		}
+
+		public void done() {
+
+			SwingUtilities.invokeLater(new Runnable() {
+
+				public void run() {
+					busyText.setVisible(false);
+					start.setEnabled(true);
+					stop.setEnabled(false);
+					for (Entry<SessionKey, ImporterMemoryLog> entry : model
+							.getMemoryLogMap().entrySet()) {
+						ImporterMemoryLog iml = entry.getValue();
+						MemoryLogModel mlm = iml.getMemoryLogModel();
+						List<LogMessage> messages = mlm.getMessages();
+						if (!messages.isEmpty()) {
+							SessionKey key = entry.getKey();
+							tabPane.addTab(
+									ViewBuilder.getTabTitle(key,
+											messages.get(0), messages.size()),
+									ViewBuilder.createTabForSession(mlm));
+							masterTabList.add(new Tab(ViewBuilder.getTabTitle(
+									key, messages.get(0)), messages.size(),
+									ViewBuilder.createTabForSession(mlm), mlm));
+
+						}
+					}
+				}
+			});
+		}
+	}
 }

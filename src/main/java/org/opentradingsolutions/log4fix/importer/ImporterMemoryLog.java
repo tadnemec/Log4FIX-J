@@ -35,8 +35,11 @@
 package org.opentradingsolutions.log4fix.importer;
 
 import org.opentradingsolutions.log4fix.core.AbstractMemoryLog;
+import org.opentradingsolutions.log4fix.core.GlazedListsMemoryLogModel;
 import org.opentradingsolutions.log4fix.core.MemoryLogModel;
+import org.opentradingsolutions.log4fix.datadictionary.ClassPathDataDictionaryLoader;
 import org.opentradingsolutions.log4fix.datadictionary.DataDictionaryLoader;
+
 import quickfix.SessionID;
 
 /**
@@ -44,29 +47,35 @@ import quickfix.SessionID;
  */
 public class ImporterMemoryLog extends AbstractMemoryLog {
 
-    private SessionID sessionId;
-    private final MemoryLogModel model;
+	private SessionID sessionId;
+	private final MemoryLogModel model;
 
-    public ImporterMemoryLog(MemoryLogModel model, DataDictionaryLoader dictionaryLoader) {
-        super(dictionaryLoader);
+	public ImporterMemoryLog() {
+		this(new GlazedListsMemoryLogModel(),
+				new ClassPathDataDictionaryLoader());
+	}
 
-        this.model = model;
-    }
+	public ImporterMemoryLog(MemoryLogModel model,
+			DataDictionaryLoader dictionaryLoader) {
+		super(dictionaryLoader);
 
-    @Override
-    protected MemoryLogModel getMemoryLogModel() {
-        return model;
-    }
+		this.model = model;
+	}
 
-    public void setSessionId(SessionID sessionId) {
-        this.sessionId = sessionId;
+	@Override
+	public MemoryLogModel getMemoryLogModel() {
+		return model;
+	}
 
-        // @todo - I don't like this line of code... try to fix it.
-        model.setSessionId(sessionId);
-    }
+	public void setSessionId(SessionID sessionId) {
+		this.sessionId = sessionId;
 
-    @Override
-    protected SessionID getSessionId() {
-        return sessionId;
-    }
+		// @todo - I don't like this line of code... try to fix it.
+		model.setSessionId(sessionId);
+	}
+
+	@Override
+	protected SessionID getSessionId() {
+		return sessionId;
+	}
 }

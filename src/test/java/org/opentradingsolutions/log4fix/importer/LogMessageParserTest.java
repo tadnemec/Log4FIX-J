@@ -34,10 +34,8 @@
 
 package org.opentradingsolutions.log4fix.importer;
 
-import junit.framework.TestCase;
-import org.junit.Assert;
+import static org.opentradingsolutions.log4fix.importer.LogMessageParser.POISON_PILL;
 
-import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.concurrent.BlockingQueue;
@@ -45,110 +43,125 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static org.opentradingsolutions.log4fix.importer.LogMessageParser.POISON_PILL;
+import junit.framework.TestCase;
+
+import org.junit.Assert;
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+import org.opentradingsolutions.log4fix.core.MessageQueueItemConstants;
 
 /**
  * @author Brian M. Coyner
  */
-public class LogMessageParserTest extends TestCase {
+public class LogMessageParserTest extends TestCase implements
+		MessageQueueItemConstants {
 
-    private PipedInputStream in;
-    private BlockingQueue<String> queue;
-    private PipedOutputStream out;
-    private static final int POLL_TIMEOUT = 500;
-    private Thread parserThread;
-    private CountDownLatch didAddToQueueLatch;
+	private PipedInputStream in;
+	private BlockingQueue<MessageQueueItem> queue;
+	private PipedOutputStream out;
+	private static final int POLL_TIMEOUT = 500;
+	private Thread parserThread;
+	private CountDownLatch didAddToQueueLatch;
 
-    @Override
-    public void setUp() throws Exception {
-        out = new PipedOutputStream();
-        in = new PipedInputStream(out);
+	@Override
+	public void setUp() throws Exception {
+		out = new PipedOutputStream();
+		in = new PipedInputStream(out);
 
-        didAddToQueueLatch = new CountDownLatch(1);
+		didAddToQueueLatch = new CountDownLatch(1);
 
-        queue = new LinkedBlockingQueue<String>(1) {
-            @Override
-            public void put(String s) throws InterruptedException {
-                super.put(s);
+		queue = new LinkedBlockingQueue<MessageQueueItem>(1) {
 
-                // kind of a hack because we are using intimate knowledge of what API calls the parser uses. It works, though.
-                didAddToQueueLatch.countDown();
-            }
-        };
-        parserThread = new Thread(new LogMessageParser(in, queue));
-    }
+			private static final long serialVersionUID = 1L;
 
-    public void testConstructParserWithNonEmptyQueueFailsFast() {
-        queue = new LinkedBlockingQueue<String>();
-        queue.add("Brian");
-        try {
-            new LogMessageParser(in, queue);
-            fail("An empty queue must be passed to the parser.");
-        } catch (IllegalStateException expected) {
-        }
-    }
+			@Override
+			public void put(MessageQueueItem s) throws InterruptedException {
+				super.put(s);
 
-    public void testConstructParserWithNullQueueFailsFast() {
-        try {
-            new LogMessageParser(in, null);
-            fail("A non-null queue must be passed to the parser.");
-        } catch (IllegalArgumentException expected) {
-        }
-    }
+				// kind of a hack because we are using intimate knowledge of
+				// what API calls the parser uses. It works, though.
+				didAddToQueueLatch.countDown();
+			}
+		};
+		parserThread = new Thread(new LogMessageParser(in, queue));
+	}
 
-    public void testConstructParserWithNullInputStreamFailsFast() {
-        in = null;
-        try {
-            new LogMessageParser(in, queue);
-            fail("A non-null input stream must be passed to the parser.");
-        } catch (IllegalArgumentException expected) {
-        }
-    }
+	public void testConstructParserWithNonEmptyQueueFailsFast() {
+		queue = new LinkedBlockingQueue<MessageQueueItem>();
+		queue.add(new MessageQueueItem("Brian", Direction.INCOMING));
+		try {
+			new LogMessageParser(in, queue);
+			fail("An empty queue must be passed to the parser.");
+		} catch (IllegalStateException expected) {
+		}
+	}
 
-    public void testInterruptingBlockedInputStreamPublishesPoisonPillAndThreadDies()
-            throws Exception {
+	public void testConstructParserWithNullQueueFailsFast() {
+		try {
+			new LogMessageParser(in, null);
+			fail("A non-null queue must be passed to the parser.");
+		} catch (IllegalArgumentException expected) {
+		}
+	}
 
-        parserThread.start();
+	public void testConstructParserWithNullInputStreamFailsFast() {
+		in = null;
+		try {
+			new LogMessageParser(in, queue);
+			fail("A non-null input stream must be passed to the parser.");
+		} catch (IllegalArgumentException expected) {
+		}
+	}
 
-        // interrupt the parserThread and see if the parserThread publishes
-        // a poison-pill to the queue
-        parserThread.interrupt();
+	public void testInterruptingBlockedInputStreamPublishesPoisonPillAndThreadDies()
+			throws Exception {
 
-        assertEquals(POISON_PILL, queue.poll(POLL_TIMEOUT, TimeUnit.MILLISECONDS));
-    }
+		parserThread.start();
 
-    public void testInterruptingBlockedQueuePublishesPoisonPillAndThreadDies() throws Exception {
+		// interrupt the parserThread and see if the parserThread publishes
+		// a poison-pill to the queue
+		parserThread.interrupt();
 
-        parserThread.start();
+		assertEquals(POISON_PILL,
+				queue.poll(POLL_TIMEOUT, TimeUnit.MILLISECONDS));
+	}
 
-        // the bounded queue (size 1) is empty at this time
-        assertEquals(1, queue.remainingCapacity());
+	public void testInterruptingBlockedQueuePublishesPoisonPillAndThreadDies()
+			throws Exception {
 
-        // write a single message
-        out.write(("8=FIX.4.2\u00019=456\u000135=D\u000110=568\u0001" + "\n").getBytes());
+		parserThread.start();
 
-        // wait for the parser to receive and enqueue the message FIX message
-        boolean success = didAddToQueueLatch.await(5, TimeUnit.SECONDS);
-        if (!success) {
-            Assert.fail("The FIX message was not enqueued on the parser's queue.");
-        }
+		// the bounded queue (size 1) is empty at this time
+		assertEquals(1, queue.remainingCapacity());
 
-        assertFullQueue();
+		// write a single message
+		out.write(("8=FIX.4.2\u00019=456\u000135=D\u000110=568\u0001" + "\n")
+				.getBytes());
 
-        // interrupt the thread and remove the messages from the queue.
-        parserThread.interrupt();
-        parserThread.join(LogMessageParser.CANCELATION_TIMEOUT + 300);
+		// wait for the parser to receive and enqueue the message FIX message
+		boolean success = didAddToQueueLatch.await(5, TimeUnit.SECONDS);
+		if (!success) {
+			Assert.fail("The FIX message was not enqueued on the parser's queue.");
+		}
 
-        assertFullQueue();
+		assertFullQueue();
 
-        // We should have only have the poison pill. The original message is discarded when the thread is interrupted
-        // to make room for the poison pill. Remember that the queue size is 1. Therefore the parser simply clears the
-        // entire queue of messages to make room for the single poison pill message.
-        assertEquals("DONE", queue.poll(POLL_TIMEOUT, TimeUnit.MILLISECONDS));
-    }
+		// interrupt the thread and remove the messages from the queue.
+		parserThread.interrupt();
+		parserThread.join(LogMessageParser.CANCELATION_TIMEOUT + 300);
 
-    private void assertFullQueue() {
-        assertEquals(1, queue.size());
-        assertEquals(0, queue.remainingCapacity());
-    }
+		assertFullQueue();
+
+		// We should have only have the poison pill. The original message is
+		// discarded when the thread is interrupted
+		// to make room for the poison pill. Remember that the queue size is 1.
+		// Therefore the parser simply clears the
+		// entire queue of messages to make room for the single poison pill
+		// message.
+		assertEquals("DONE", queue.poll(POLL_TIMEOUT, TimeUnit.MILLISECONDS));
+	}
+
+	private void assertFullQueue() {
+		assertEquals(1, queue.size());
+		assertEquals(0, queue.remainingCapacity());
+	}
 }

@@ -34,26 +34,40 @@
 
 package org.opentradingsolutions.log4fix;
 
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.io.File;
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.swing.AbstractAction;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
+
+import org.opentradingsolutions.log4fix.core.GlazedListsMemoryLogModel;
 import org.opentradingsolutions.log4fix.core.MemoryLogFactory;
 import org.opentradingsolutions.log4fix.core.MemoryLogModel;
 import org.opentradingsolutions.log4fix.core.MemoryLogModelFactory;
+import org.opentradingsolutions.log4fix.core.TabSearchField;
 import org.opentradingsolutions.log4fix.datadictionary.SessionDataDictionaryLoader;
+import org.opentradingsolutions.log4fix.ui.importer.ActionStart;
 import org.opentradingsolutions.log4fix.ui.importer.ImporterController;
 import org.opentradingsolutions.log4fix.ui.messages.ViewBuilder;
+
 import quickfix.LogFactory;
 import quickfix.SessionID;
 import quickfix.SessionSettings;
-
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.util.Iterator;
-import java.util.Map;
 
 /**
  * Here is an example of how you might integrate Log4FIX with your QuickFIX/J
  * application:
  * <p/>
+ * 
  * <pre>
  * SessionSettings sessionSettings = . . .;
  * <p/>
@@ -74,121 +88,206 @@ import java.util.Map;
  * <p/>
  * <p>
  * The above obtains a <tt>Log4FIX</tt> instance by passing the
- * <tt>quickfix.SessionSettings</tt> object. Log4FIX interrogates the session settings
- * for all statically configured sessions and registers a {@link MemoryLogModel} that
- * receives all FIX message matching the session Id. This allows Log4FIX to route
- * messages to the appropriate "view".
+ * <tt>quickfix.SessionSettings</tt> object. Log4FIX interrogates the session
+ * settings for all statically configured sessions and registers a
+ * {@link MemoryLogModel} that receives all FIX message matching the session Id.
+ * This allows Log4FIX to route messages to the appropriate "view".
  * </p>
  * <p/>
  * <p/>
  * You can {@link #show()} the Log4FIX frame anytime. You do not have to wait
  * for the session to connect to the counterparty.
- *
+ * 
  * @author Brian M. Coyner
  */
 public class Log4FIX {
 
-    private MemoryLogFactory logFactory;
-    public JFrame frame;
+	private MemoryLogFactory logFactory;
+	public JFrame frame;
 
-    /**
-     * Factory method that creates a Log4FIX instance for displaying real-time
-     * FIX messages.
-     *
-     * @param sessionSettings valid QuickFIX/J settings object.
-     * @return an instance that is ready to display real-time messages.
-     * @see #getLogFactory()
-     * @see #show()
-     */
-    public static Log4FIX createForLiveUpdates(SessionSettings sessionSettings) {
-        return createForLiveUpdates(MemoryLogModelFactory.getMemoryLogModels(sessionSettings));
-    }
+	public static String tabField = "";
+	public static String fixField = "";
 
-    /**
-     * Factory method that creates a Log4FIX instance for displaying real-time
-     * FIX messages.
-     *
-     * @param memoryLogModelsBySessionId map containing session Ids
-     *                                   and <tt>MemoryLogModel</tt>s.
-     * @return an instance that is ready to display real-time messages.
-     * @see #getLogFactory()
-     * @see #show()
-     */
-    public static Log4FIX createForLiveUpdates(Map<SessionID, MemoryLogModel> memoryLogModelsBySessionId) {
+	/**
+	 * Factory method that creates a Log4FIX instance for displaying real-time
+	 * FIX messages.
+	 * 
+	 * @param sessionSettings
+	 *            valid QuickFIX/J settings object.
+	 * @return an instance that is ready to display real-time messages.
+	 * @see #getLogFactory()
+	 * @see #show()
+	 */
+	public static Log4FIX createForLiveUpdates(SessionSettings sessionSettings) {
+		return createForLiveUpdates(MemoryLogModelFactory
+				.getMemoryLogModels(sessionSettings));
+	}
 
-        Log4FIX log4FIX = new Log4FIX();
-        log4FIX.logFactory = new MemoryLogFactory(memoryLogModelsBySessionId, new SessionDataDictionaryLoader());
+	/**
+	 * Factory method that creates a Log4FIX instance for displaying real-time
+	 * FIX messages.
+	 * 
+	 * @param memoryLogModelsBySessionId
+	 *            map containing session Ids and <tt>MemoryLogModel</tt>s.
+	 * @return an instance that is ready to display real-time messages.
+	 * @see #getLogFactory()
+	 * @see #show()
+	 */
+	public static Log4FIX createForLiveUpdates(
+			Map<SessionID, MemoryLogModel> memoryLogModelsBySessionId) {
 
-        ViewBuilder viewBuilder = new ViewBuilder();
+		Log4FIX log4FIX = new Log4FIX();
+		log4FIX.logFactory = new MemoryLogFactory(memoryLogModelsBySessionId,
+				new SessionDataDictionaryLoader());
 
-        final Iterator<MemoryLogModel> memoryLogModels = memoryLogModelsBySessionId.values().iterator();
+		ViewBuilder viewBuilder = new ViewBuilder();
 
-        log4FIX.frame = new JFrame("Log4FIX");
-        log4FIX.frame.add(viewBuilder.createView(memoryLogModels), BorderLayout.CENTER);
-        log4FIX.frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		final Iterator<MemoryLogModel> memoryLogModels = memoryLogModelsBySessionId
+				.values().iterator();
 
-        return log4FIX;
-    }
+		log4FIX.frame = new JFrame("Log4FIX");
+		log4FIX.frame.add(viewBuilder.createView(memoryLogModels),
+				BorderLayout.CENTER);
+		log4FIX.frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-    /**
-     * Factory method that creates a Log4FIX instance for displaying imported
-     * FIX messages.
-     */
-    public static Log4FIX createForImport(final MemoryLogModel memoryLogModel, ImporterController controller) {
-        ViewBuilder viewBuilder = new ViewBuilder();
+		return log4FIX;
+	}
 
-        Log4FIX log4FIX = new Log4FIX();
-        log4FIX.frame = new JFrame("Log4FIX");
-        log4FIX.frame.add(viewBuilder.createView(memoryLogModel), BorderLayout.CENTER);
+	/**
+	 * Factory method that creates a Log4FIX instance for displaying imported
+	 * FIX messages.
+	 */
+	public static Log4FIX createForImport(final MemoryLogModel memoryLogModel,
+			ImporterController controller) {
+		ViewBuilder viewBuilder = new ViewBuilder();
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        buttonPanel.add(new JButton(controller.getStart()));
-        buttonPanel.add(new JButton(controller.getStop()));
-        buttonPanel.add(new JButton(new AbstractAction("Clear") {
-            public void actionPerformed(ActionEvent e) {
-                memoryLogModel.clear();
-            }
-        }
-        ));
+		Log4FIX log4FIX = new Log4FIX();
+		log4FIX.frame = new JFrame("Log4FIX");
+		log4FIX.frame.add(viewBuilder.createView(memoryLogModel),
+				BorderLayout.CENTER);
 
-        buttonPanel.add(controller.getBusyIcon());
+		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+		buttonPanel.add(new JButton(controller.getStart()));
+		buttonPanel.add(new JButton(controller.getStop()));
+		buttonPanel.add(new JButton(new AbstractAction("Clear") {
+			public void actionPerformed(ActionEvent e) {
+				memoryLogModel.clear();
+			}
+		}));
 
-        log4FIX.frame.add(buttonPanel, BorderLayout.NORTH);
-        log4FIX.frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        return log4FIX;
-    }
+		buttonPanel.add(controller.getBusyIcon());
 
-    /**
-     * Displays the Log4FIX frame in the event thread.
-     */
-    public void show() {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                frame.pack();
-                frame.setLocationRelativeTo(null);
-                frame.setVisible(true);
-            }
-        });
-    }
+		log4FIX.frame.add(buttonPanel, BorderLayout.NORTH);
+		log4FIX.frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		return log4FIX;
+	}
 
-    /**
-     * Closes the Log4FIX frame in the event thread.
-     */
-    public void close() {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                frame.dispose();
-            }
-        });
-    }
+	public static Log4FIX createForMultiple(
+			final ImporterController controller, boolean liveTab,
+			boolean liveSearch) {
+		final ViewBuilder viewBuilder = new ViewBuilder();
 
-    /**
-     * A {@link quickfix.LogFactory} is used by QuickFIX/J to create
-     * {@link quickfix.Log}s.
-     *
-     * @return may return null if created for displaying an imported log file.
-     */
-    public LogFactory getLogFactory() {
-        return logFactory;
-    }
+		final Log4FIX log4FIX = new Log4FIX();
+		log4FIX.frame = new JFrame("Log4FIX");
+		controller.setFrame(log4FIX.frame);
+		JTabbedPane jtp = (JTabbedPane) viewBuilder
+				.createView(new GlazedListsMemoryLogModel());
+		controller.setTabPane(jtp);
+		log4FIX.frame.add(jtp, BorderLayout.CENTER);
+
+		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+		buttonPanel.add(new JButton(controller.getStart()));
+		buttonPanel.add(new JButton(controller.getStop()));
+		buttonPanel.add(new JButton(new AbstractAction("Clear") {
+			public void actionPerformed(ActionEvent e) {
+				controller.clear();
+				((ActionStart) controller.getStart()).setCurrentFile(null);
+				log4FIX.frame.setTitle("Log4FIX");
+			}
+		}));
+		buttonPanel.add(new JButton(new AbstractAction("Refresh") {
+			public void actionPerformed(ActionEvent e) {
+				File f = ((ActionStart) controller.getStart()).getCurrentFile();
+				if (f != null
+						&& f.lastModified() > ((ActionStart) controller
+								.getStart()).getTimeStamp()) {
+					controller.clear();
+					((ActionStart) controller.getStart()).importFile(f);
+					log4FIX.frame.setTitle("Log4FIX - " + f.getAbsolutePath());
+				}
+			}
+		}));
+
+		buttonPanel.add(new JLabel("Sessions:"));
+		final TabSearchField tabSort = new TabSearchField(7, liveTab) {
+			public void postActionEvent() {
+				tabField = getText();
+				controller.combinedSearch(tabField, fixField);
+			};
+		};
+		buttonPanel.add(tabSort);
+		final TabSearchField tabSearch = new TabSearchField(10, liveSearch) {
+			public void postActionEvent() {
+				fixField = getText();
+				controller.combinedSearch(tabField, fixField);
+			};
+		};
+		buttonPanel.add(new JLabel("Messages:"));
+		buttonPanel.add(tabSearch);
+		buttonPanel.add(new JButton(new AbstractAction("Search") {
+			public void actionPerformed(ActionEvent e) {
+				tabField = tabSort.getText();
+				fixField = tabSearch.getText();
+				controller.combinedSearch(tabSort.getText(),
+						tabSearch.getText());
+			}
+		}));
+		buttonPanel.add(new JButton(new AbstractAction("Cancel") {
+			public void actionPerformed(ActionEvent e) {
+				tabSort.setText("");
+				tabSearch.setText("");
+				controller.resetTabSearch();
+			}
+		}));
+
+		buttonPanel.add(controller.getBusyIcon());
+
+		log4FIX.frame.add(buttonPanel, BorderLayout.NORTH);
+		log4FIX.frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		return log4FIX;
+	}
+
+	/**
+	 * Displays the Log4FIX frame in the event thread.
+	 */
+	public void show() {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				frame.pack();
+				frame.setLocationRelativeTo(null);
+				frame.setVisible(true);
+			}
+		});
+	}
+
+	/**
+	 * Closes the Log4FIX frame in the event thread.
+	 */
+	public void close() {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * A {@link quickfix.LogFactory} is used by QuickFIX/J to create
+	 * {@link quickfix.Log}s.
+	 * 
+	 * @return may return null if created for displaying an imported log file.
+	 */
+	public LogFactory getLogFactory() {
+		return logFactory;
+	}
 }

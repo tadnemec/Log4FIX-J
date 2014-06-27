@@ -38,21 +38,23 @@ import java.io.InputStream;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.opentradingsolutions.log4fix.core.MessageQueueItem;
+
 /**
  * @author Brian M. Coyner
  */
 public class Importer {
 
-    private final BlockingQueue<String> queue;
+    private final BlockingQueue<MessageQueueItem> queue;
 
     private Thread producer;
     private ImporterCallback callback;
 
     public Importer() {
-        this(new LinkedBlockingQueue<String>());
+        this(new LinkedBlockingQueue<MessageQueueItem>());
     }
 
-    protected Importer(BlockingQueue<String> queue) {
+    protected Importer(BlockingQueue<MessageQueueItem> queue) {
         this.queue = queue;
     }
 
