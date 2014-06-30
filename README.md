@@ -25,7 +25,7 @@ These don't currently work all that well, as they have not been updated to refle
 
 ## Sample Messages
 
--There are a handful of sample messages located in the __src/test/resources/logs__ directory.- The sample messages do not work because of the changes to how it determines message directionality.
+--There are a handful of sample messages located in the __src/test/resources/logs__ directory.-- The sample messages do not work because of the changes to how it determines message directionality.
 
 ## CONFIG
 
