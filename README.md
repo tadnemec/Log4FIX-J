@@ -33,26 +33,26 @@ The program accepts an optional CONFIG file in the same directory as the compile
 
 Sample CONFIG file:
 
-   --PROPERTIES--
-   // PROPERTY : value
-
-   //LIVE_TABS : true
-   //LIVE_SEARCH : true
-
-   --COLORS--
-   // COLOR : r,g,b
-
-   //IN_COLOR : 255,255,255
-   //OUT_COLOR : 255,255,255
-   //IN_TEXT : 255,255,255
-   //OUT_TEXT : 255,255,255
-   //IN_SELECT_COLOR : 255,255,255
-   //OUT_SELECT_COLOR : 255,255,255
-   //IN_SELECT_TEXT : 255,255,255
-   //OUT_SELECT_TEXT : 255,255,255
-   //DATA : 255,255,255
-   //HEADER : 255,255,255
-   //TRAILER : 255,255,255
+    --PROPERTIES--
+    // PROPERTY : value
+    
+    //LIVE_TABS : true
+    //LIVE_SEARCH : true
+    
+    --COLORS--
+    // COLOR : r,g,b
+    
+    //IN_COLOR : 255,255,255
+    //OUT_COLOR : 255,255,255
+    //IN_TEXT : 255,255,255
+    //OUT_TEXT : 255,255,255
+    //IN_SELECT_COLOR : 255,255,255
+    //OUT_SELECT_COLOR : 255,255,255
+    //IN_SELECT_TEXT : 255,255,255
+    //OUT_SELECT_TEXT : 255,255,255
+    //DATA : 255,255,255
+    //HEADER : 255,255,255
+    //TRAILER : 255,255,255
 
 `LIVE_TABS` : whether searching by tab titles will update as the search box is updated. Usually not slow enough to warrant setting to false (default = true)
 
